@@ -97,6 +97,7 @@ def _gradient_norm(circuit: torch.nn.Module) -> float:
     [
         pytest.param(224, id="D224"),
         pytest.param(240, id="D240"),
+        pytest.param(263, id="D263"),
     ],
 )
 def test_large_categorical_cp_does_not_degenerate(num_features: int) -> None:
