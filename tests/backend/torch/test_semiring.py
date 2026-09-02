@@ -59,3 +59,52 @@ def test_semiring_complex_lse_sum_semiring() -> None:
     assert torch.all(torch.isfinite(y2.real))
     assert torch.all(torch.isfinite(y2.imag))
     assert allclose(y1, y2.real)
+
+
+def test_lse_sum_semiring_preserves_large_negative_finite_values() -> None:
+    dtype = torch.float32
+
+    with torch.enable_grad():
+        x = torch.tensor(
+            [-500.0, -500.0],
+            dtype=dtype,
+            requires_grad=True,
+        )
+
+        product = LSESumSemiring.prod(x, dim=0)
+
+        torch.testing.assert_close(
+            product,
+            torch.tensor(-1000.0, dtype=dtype),
+        )
+
+        product.backward()
+
+    assert x.grad is not None
+    torch.testing.assert_close(
+        x.grad,
+        torch.ones_like(x),
+    )
+
+    a = torch.tensor(-1000.0, dtype=dtype)
+    b = torch.tensor(-1001.0, dtype=dtype)
+
+    torch.testing.assert_close(
+        LSESumSemiring.add(a, b),
+        torch.logaddexp(a, b),
+    )
+
+    values = torch.stack([a, b])
+
+    torch.testing.assert_close(
+        LSESumSemiring.sum(values, dim=0),
+        torch.logsumexp(values, dim=0),
+    )
+
+    torch.testing.assert_close(
+        LSESumSemiring.mul(
+            torch.tensor(-500.0, dtype=dtype),
+            torch.tensor(-500.0, dtype=dtype),
+        ),
+        torch.tensor(-1000.0, dtype=dtype),
+    )
