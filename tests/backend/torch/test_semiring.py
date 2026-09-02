@@ -108,3 +108,89 @@ def test_lse_sum_semiring_preserves_large_negative_finite_values() -> None:
         ),
         torch.tensor(-1000.0, dtype=dtype),
     )
+
+
+def test_lse_sum_semiring_respects_log_zero_and_one_identities() -> None:
+    dtype = torch.float32
+
+    log_zero = torch.tensor(float("-inf"), dtype=dtype)
+    log_one = torch.tensor(0.0, dtype=dtype)
+    finite = torch.tensor(-1000.0, dtype=dtype)
+
+    # Additive identity in the log semiring:
+    # log(exp(-inf) + exp(x)) = x.
+    torch.testing.assert_close(
+        LSESumSemiring.add(log_zero, finite),
+        finite,
+    )
+    torch.testing.assert_close(
+        LSESumSemiring.sum(
+            torch.stack([log_zero, finite]),
+            dim=0,
+        ),
+        finite,
+    )
+
+    # Additive zero remains exact.
+    assert torch.isneginf(
+        LSESumSemiring.add(log_zero, log_zero)
+    )
+    assert torch.isneginf(
+        LSESumSemiring.sum(
+            torch.stack([log_zero, log_zero]),
+            dim=0,
+        )
+    )
+
+    # Multiplicative identity in the log semiring:
+    # log(1) + log(p) = log(p).
+    torch.testing.assert_close(
+        LSESumSemiring.mul(log_one, finite),
+        finite,
+    )
+    torch.testing.assert_close(
+        LSESumSemiring.prod(
+            torch.stack([log_one, finite]),
+            dim=0,
+        ),
+        finite,
+    )
+
+    # Multiplication by zero probability remains zero probability.
+    assert torch.isneginf(
+        LSESumSemiring.mul(log_zero, finite)
+    )
+    assert torch.isneginf(
+        LSESumSemiring.prod(
+            torch.stack([log_zero, finite]),
+            dim=0,
+        )
+    )
+
+    # The differentiable identity case should have finite, correct gradients.
+    with torch.enable_grad():
+        a = torch.tensor(
+            float("-inf"),
+            dtype=dtype,
+            requires_grad=True,
+        )
+        b = torch.tensor(
+            -1000.0,
+            dtype=dtype,
+            requires_grad=True,
+        )
+
+        result = LSESumSemiring.add(a, b)
+        result.backward()
+
+    assert a.grad is not None
+    assert b.grad is not None
+
+    torch.testing.assert_close(
+        a.grad,
+        torch.tensor(0.0, dtype=dtype),
+    )
+    torch.testing.assert_close(
+        b.grad,
+        torch.tensor(1.0, dtype=dtype),
+    )
